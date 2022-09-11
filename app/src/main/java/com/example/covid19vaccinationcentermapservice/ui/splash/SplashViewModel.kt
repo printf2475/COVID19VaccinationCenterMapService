@@ -47,10 +47,9 @@ class SplashViewModel @Inject constructor(
 
 
     private fun startProgressAndGetVaccinationCenter() = viewModelScope.launch(coroutineExceptionHandler){
-        //async = 병렬처리
-        async { startProgress() }
+        launch { startProgress() }
 
-        async { getVaccinationCenterFromRestApi().collect {
+        launch { getVaccinationCenterFromRestApi().collect {
             when (it) {
                 VaccinationLoadEvent.Loading -> _vaccinationLoadEvent.emit(it)
                 VaccinationLoadEvent.Success -> _vaccinationLoadEvent.emit(it)
@@ -99,6 +98,7 @@ class SplashViewModel @Inject constructor(
                 vaccinationCenterRepository.getVaccinationCenterFromRestApi(page)
             emit(VaccinationLoadEvent.LoadData(vaccinationCenterData.data))
         }
+
         emit(VaccinationLoadEvent.Success)
 
     }
