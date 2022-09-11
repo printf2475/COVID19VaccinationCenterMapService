@@ -23,7 +23,7 @@
             android:layout_marginHorizontal="20dp"
             android:scaleY="2"
             android:max="100"
-            android:progress="@{0}"
+            android:progress="@{viewModel.loadingProgress}"
 
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"

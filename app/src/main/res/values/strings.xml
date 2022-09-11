@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">COVID19VaccinationCenterMapService</string>
+    <string name="error_vaccination_center_load">백신센터 로드 실패</string>
 </resources>
