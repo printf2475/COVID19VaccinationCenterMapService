@@ -1,7 +1,7 @@
 # COVID19VaccinationCenterMapService
 
 
-** API KEY를 local.properties에 추가하여 아래 키를 local.properties에 붙여넣기해야합니다 **
+**  API KEY를 local.properties에 추가하여 클론할 때 아래 키를 local.properties에 추가해야합니다 **
 
 vaccination_center_base_url = "https://api.odcloud.kr/api/" <br>
 vaccination_center_api_key = "bNmSjmL3NWL/mAmsQV0SyDT+8DCdZckhVg5/tSsmJHa47eBZBE+aFvCHYxeM1Dsz2FcgQ64elqYL3mr6GUyjOg=="<br>
