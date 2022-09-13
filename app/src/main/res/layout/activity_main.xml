@@ -99,10 +99,12 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_margin="20dp"
-            android:backgroundTint="@color/black"
+            android:src="@drawable/ic_location"
+            app:maxImageSize="45dp"
+            app:fabCustomSize="45dp"
+            app:backgroundTint="@color/purple_500"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
-
 
 
     </androidx.constraintlayout.widget.ConstraintLayout>

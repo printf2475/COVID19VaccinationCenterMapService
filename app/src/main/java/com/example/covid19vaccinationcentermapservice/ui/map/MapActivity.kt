@@ -11,9 +11,14 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.example.covid19vaccinationcentermapservice.BuildConfig
+import com.example.covid19vaccinationcentermapservice.R
 import com.example.covid19vaccinationcentermapservice.data.model.VaccinationCenterData
 import com.example.covid19vaccinationcentermapservice.databinding.ActivityMainBinding
+import com.example.covid19vaccinationcentermapservice.ui.splash.SplashViewModel
 import com.example.covid19vaccinationcentermapservice.util.Define
 import com.google.android.gms.location.*
 import com.naver.maps.geometry.LatLng
@@ -23,6 +28,7 @@ import com.naver.maps.map.overlay.Overlay
 import com.naver.maps.map.overlay.OverlayImage
 import com.naver.maps.map.util.MarkerIcons
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 
 
 @AndroidEntryPoint
@@ -31,7 +37,6 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback, Overlay.OnClickList
     private lateinit var naverMap: NaverMap
     private lateinit var binding: ActivityMainBinding
     private var mFusedLocationProviderClient: FusedLocationProviderClient? = null // 현재 위치를 가져오기 위한 변수
-    lateinit var mLastLocation: Location // 위치 값을 가지고 있는 객체
     lateinit var mLocationRequest: LocationRequest // 위치 정보 요청의 매개변수를 저장하는
 
     private val REQUEST_PERMISSION_LOCATION = 10
@@ -47,9 +52,38 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback, Overlay.OnClickList
 
         initNaverMap()
         initObserver()
+        initListener()
+    }
+
+
+    private fun initListener() {
+        binding.myLocation.setOnClickListener {
+            val myLatLng = viewModel.getMyLatLng()
+            if (myLatLng != null){
+                moveCamera(myLatLng.latitude, myLatLng.longitude)
+                return@setOnClickListener
+            }
+
+            if (checkPermissionForLocation(this)) {
+                startLocationUpdates()
+
+            }
+        }
     }
 
     private fun initObserver() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.vaccinationLoadEvent.collect{
+                    when(it){
+                        SplashViewModel.VaccinationLoadEvent.Fail -> showToast()
+                        else -> {}
+                    }
+                }
+            }
+        }
+
+
         viewModel.selectedMarker.observe(this) {
             if (it == null) return@observe
             it.let {
@@ -59,6 +93,13 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback, Overlay.OnClickList
                 naverMap.moveCamera(cameraUpdate)
             }
         }
+
+        viewModel.vaccinationCenterList.observe(this) {
+            if (it == null) return@observe
+            it.forEach {
+                initMarker(it, naverMap)
+            }
+        }
     }
 
 
@@ -66,12 +107,9 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback, Overlay.OnClickList
         NaverMapSdk.getInstance(this).client =
             NaverMapSdk.NaverCloudPlatformClient(BuildConfig.NAVER_MAP_API_KEY)
 
-
         mLocationRequest =  LocationRequest.create().apply {
             priority = LocationRequest.PRIORITY_HIGH_ACCURACY
         }
-
-
 
         binding.mapView.getMapAsync(this)
 
@@ -79,19 +117,7 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback, Overlay.OnClickList
 
     override fun onMapReady(naverMap: NaverMap) {
         this.naverMap = naverMap
-        binding.myLocation.setOnClickListener {
-            if (checkPermissionForLocation(this)) {
-                startLocationUpdates()
-
-            }
-        }
         viewModel.getAllVaccinationCenterFromDB()
-        viewModel.vaccinationCenterList.observe(this) {
-            it.forEach {
-                initMarker(it, naverMap)
-            }
-        }
-
     }
 
     private fun initMarker(
@@ -120,16 +146,21 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback, Overlay.OnClickList
         }
     }
 
-    override fun onClick(overlay: Overlay): Boolean {
-        if (overlay is Marker) {
-            viewModel.onClickMarker(overlay)
+    // 위치 권한이 있는지 확인하는 메서드
+    private fun checkPermissionForLocation(context: Context): Boolean {
+        // Android 6.0 Marshmallow 이상에서는 위치 권한에 추가 런타임 권한이 필요
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                true
+            } else {
+                // 권한이 없으므로 권한 요청 알림 보내기
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), REQUEST_PERMISSION_LOCATION)
+                false
+            }
+        } else {
+            true
         }
-
-        return false
     }
-
-
-
 
 
     private fun startLocationUpdates() {
@@ -156,30 +187,30 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback, Overlay.OnClickList
 
     // 시스템으로 부터 받은 위치정보를 화면에 갱신해주는 메소드
     fun onLocationChanged(location: Location) {
-        mLastLocation = location
-        val cameraUpdate =
-            CameraUpdate.scrollAndZoomTo(LatLng(location.latitude, location.longitude), 15.0)
-                .animate(CameraAnimation.Fly, 1000)
+        moveCamera(location.latitude, location.longitude)
+        viewModel.setMyLatLng(LatLng(location.latitude, location.longitude))
         viewModel.selectedMarkerClear()
+    }
+
+    private fun moveCamera(latitude : Double, longitude : Double){
+        val cameraUpdate =
+            CameraUpdate.scrollAndZoomTo(LatLng(latitude, longitude), 15.0)
+                .animate(CameraAnimation.Fly, 1000)
         naverMap.moveCamera(cameraUpdate)
+    }
+
+    private fun showToast(){
+        Toast.makeText(this, getString(R.string.error_vaccination_center_load), Toast.LENGTH_LONG).show()
     }
 
 
 
-    // 위치 권한이 있는지 확인하는 메서드
-    private fun checkPermissionForLocation(context: Context): Boolean {
-        // Android 6.0 Marshmallow 이상에서는 위치 권한에 추가 런타임 권한이 필요
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                true
-            } else {
-                // 권한이 없으므로 권한 요청 알림 보내기
-                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), REQUEST_PERMISSION_LOCATION)
-                false
-            }
-        } else {
-            true
+    override fun onClick(overlay: Overlay): Boolean {
+        if (overlay is Marker) {
+            viewModel.onClickMarker(overlay)
         }
+
+        return false
     }
 
 
@@ -191,7 +222,7 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback, Overlay.OnClickList
                 startLocationUpdates()
 
             } else {
-                Toast.makeText(this, "권한이 없어 해당 기능을 실행할 수 없습니다.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.error_permission_message), Toast.LENGTH_SHORT).show()
             }
         }
     }

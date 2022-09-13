@@ -14,11 +14,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flow
 import java.lang.Exception
+import java.lang.NullPointerException
 import javax.inject.Inject
 
 @HiltViewModel
 class SplashViewModel @Inject constructor(
-    private val vaccinationCenterRepository: VaccinationCenterRepository
+    private val vaccinationCenterRepository: VaccinationCenterRepository,
 ) : ViewModel() {
 
     private val _vaccinationLoadEvent =
@@ -29,16 +30,17 @@ class SplashViewModel @Inject constructor(
     val loadingProgress: LiveData<Int> get() = _loadingProgress
 
     //coroutineExceptionHandler을 선언한 하위 코루틴에서 Exception 핸들링
-    private var  coroutineExceptionHandler : CoroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
-        when(throwable){
-            is Exception -> {
-                viewModelScope.launch {
-                    _vaccinationLoadEvent.emit(VaccinationLoadEvent.Fail)
-                    Log.e("Exeption", throwable.message.toString())
+    private var coroutineExceptionHandler: CoroutineExceptionHandler =
+        CoroutineExceptionHandler { _, throwable ->
+            when (throwable) {
+                is Exception -> {
+                    viewModelScope.launch {
+                        _vaccinationLoadEvent.emit(VaccinationLoadEvent.Fail)
+                        Log.e("Exeption", throwable.message.toString())
+                    }
                 }
             }
         }
-    }
 
     init {
         _loadingProgress.value = 0
@@ -46,19 +48,24 @@ class SplashViewModel @Inject constructor(
     }
 
 
-    private fun startProgressAndGetVaccinationCenter() = viewModelScope.launch(coroutineExceptionHandler){
-        launch { startProgress() }
+    private fun startProgressAndGetVaccinationCenter() =
+        viewModelScope.launch(coroutineExceptionHandler) {
+            launch { startProgress() }
 
-        launch { getVaccinationCenterFromRestApi().collect {
-            when (it) {
-                VaccinationLoadEvent.Loading -> _vaccinationLoadEvent.emit(it)
-                VaccinationLoadEvent.Success -> _vaccinationLoadEvent.emit(it)
-                VaccinationLoadEvent.Fail -> _vaccinationLoadEvent.emit(it)
-                is VaccinationLoadEvent.LoadData ->
-                    vaccinationCenterRepository.saveVaccinationCenterList(it.vaccinationCenterList)
+
+
+            launch {
+                getVaccinationCenterFromRestApi().collect {
+                    when (it) {
+                        VaccinationLoadEvent.Loading -> _vaccinationLoadEvent.emit(it)
+                        VaccinationLoadEvent.Success -> _vaccinationLoadEvent.emit(it)
+                        VaccinationLoadEvent.Fail -> _vaccinationLoadEvent.emit(it)
+                        is VaccinationLoadEvent.LoadData ->
+                            vaccinationCenterRepository.saveVaccinationCenterList(it.vaccinationCenterList)
+                    }
+                }
             }
-        } }
-    }
+        }
 
     private suspend fun startProgress() {
         progressBarMoveToPercent(80)
@@ -70,7 +77,7 @@ class SplashViewModel @Inject constructor(
         }
     }
 
-    private suspend fun observeVaccinationLoadSuccess(){
+    private suspend fun observeVaccinationLoadSuccess() {
         vaccinationLoadEvent.collect {
             if (VaccinationLoadEvent.Success == it) {
                 progressBarMoveToPercent(100)
@@ -81,7 +88,7 @@ class SplashViewModel @Inject constructor(
 
     private suspend fun progressBarMoveToPercent(percent: Int) {
         viewModelScope.launch {
-            while (loadingProgress.value!! <= percent){
+            while (loadingProgress.value!! <= percent) {
                 _loadingProgress.value = _loadingProgress.value!! + 1
                 delay(Define.AppData.PROGRESS_DELAY)
             }
